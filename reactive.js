@@ -20,8 +20,8 @@ function effect(callback) {
 
 //when ever we request through a get methoud on our proxy object (like obj.count)(through effects)
 //we need this function to be run , because it is in sync with our effect
-//so it means effect as jobs we want to be done and to be track for adding the jobs we want
-//to be done in the list
+//so it means effect are as jobs we want to be done and to be track so we want to adding them
+//into the list
 //so for example we say we want to see the resault of count now (obj.count=> ressault for example= 1)
 //so this is the job we want to be done and we ask it with get (obj.something)
 function track(target, prop) {
