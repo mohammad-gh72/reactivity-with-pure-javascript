@@ -1,0 +1,97 @@
+let currentEffect = null;
+
+/* 
+  WeakMap is a special type of Map that holds "weak" references to keys. 
+  - It only accepts objects as keys.
+  - We use it to store dependencies (effects) for our proxy objects 
+    without preventing garbage collection.
+*/
+const targetMap = new WeakMap();
+
+/* 
+  The `effect` function registers a "job" (callback function) that should run 
+  whenever the reactive system detects changes. 
+  - It sets `currentEffect` to the callback temporarily, runs it, and then clears it.
+  - Clearing `currentEffect` ensures that previously completed jobs 
+    aren't unnecessarily tracked again.
+*/
+function effect(callback) {
+  if (!currentEffect) {
+    currentEffect = callback;
+    currentEffect(); // Run the callback to register the dependencies
+  }
+  currentEffect = null; // Clear after execution
+}
+
+/* 
+  The `track` function keeps track of dependencies (effects) for reactive properties.
+  - It is triggered when a property is accessed (via `get`).
+  - This ensures the effects are properly stored so they can be re-executed when needed.
+*/
+function track(target, prop) {
+  if (currentEffect) {
+    // Check if the target object is already being tracked in `targetMap`.
+    let depsMap = targetMap.get(target);
+    if (!depsMap) {
+      // If not, create a new Map to track dependencies for this object.
+      depsMap = new Map();
+      targetMap.set(target, depsMap);
+    }
+
+    // Check if the property is already being tracked.
+    let deps = depsMap.get(prop);
+    if (!deps) {
+      // If not, create a Set to store effects (jobs) for this property.
+      deps = new Set();
+      depsMap.set(prop, deps);
+    }
+
+    // Add the current effect to the Set.
+    // This ensures the effect is triggered when the property changes.
+    deps.add(currentEffect);
+  }
+}
+
+/* 
+  The `trigger` function runs all the effects (jobs) that are dependent 
+  on a specific property.
+  - It is triggered when a property is updated (via `set`).
+  - This ensures that changes to the reactive property are reflected wherever it's used.
+*/
+function trigger(target, prop) {
+  const depsMap = targetMap.get(target); // Get the dependencies for this object
+  if (!depsMap) return; // If no dependencies, stop here
+
+  const deps = depsMap.get(prop); // Get the effects for the specific property
+  if (deps) {
+    deps.forEach((effect) => effect()); // Run all effects
+  }
+}
+
+/* 
+  The `reactiveIt` function creates a reactive version of an object.
+  - It uses a Proxy to intercept `get` and `set` operations.
+  - On `get`, it tracks the dependencies.
+  - On `set`, it triggers the effects to ensure updates are reflected.
+*/
+function reactiveIt(object) {
+  const handler = {
+    // Intercepts `get` calls (e.g., obj.prop)
+    get(target, prop) {
+      track(target, prop); // Track the dependency
+      return target[prop]; // Return the actual value
+    },
+    // Intercepts `set` calls (e.g., obj.prop = value)
+    set(target, prop, value) {
+      target[prop] = value; // Update the value
+      trigger(target, prop); // Trigger effects for the updated property
+      return true; // Indicate the operation was successful
+    },
+  };
+
+  // Return a Proxy that wraps the original object with the defined handler
+  return new Proxy(object, handler);
+}
+
+// Export the `reactiveIt` and `effect` functions for external use.
+export { reactiveIt, effect };
